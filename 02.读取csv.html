@@ -1,0 +1,81 @@
+<!--
+ * @Author: Xu Bai
+ * @Date: 2020-07-19 21:53:10
+ * @LastEditors: Xu Bai
+ * @LastEditTime: 2020-07-19 22:29:01
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.staticfile.org/tensorflow/2.0.1/tf.js"></script>
+    <title>Document</title>
+</head>
+
+<body>
+    <h1>从csv中读取文件（必须是部署到web服务器）</h1>
+
+    <script lang="js">
+        async function run() {
+            const csvUrl = "iris.csv";
+            const trainingData = tf.data.csv(csvUrl, {
+                columnConfigs: {
+                    // 哪一列被视为标签，csv中的species列
+                    species: {
+                        isLabel: true
+                    }
+                }
+            });
+            const numOfFeatures = (await trainingData.columnNames()).length - 1;
+            const numOfSamples = 150;
+            const convertedData = trainingData.map(({
+                xs,
+                ys
+            }) => {
+                const labels = [
+                    ys.species == "setosa" ? 1 : 0,
+                    ys.species == "virginica" ? 1 : 0,
+                    ys.species == "versicolor" ? 1 : 0
+                ]
+                return {
+                    xs: Object.values(xs),
+                    ys: Object.values(labels)
+                }
+            }).batch(10);
+
+            const model = tf.sequential();
+            model.add(tf.layers.dense({
+                // js中这样代替Flatten()
+                inputShape: [numOfFeatures],
+                activation: "sigmoid",
+                units: 5
+            }));
+            model.add(tf.layers.dense({
+                activation: "softmax",
+                units: 3
+            }));
+            model.compile({
+                loss: "categoricalCrossentropy",
+                optimizer: tf.train.adam(0.06)
+            });
+            await model.fitDataset(
+                convertedData, {
+                    epochs: 100,
+                    callbacks: {
+                        onEpochEnd: async (epoch, logs) => {
+                            console.log("E: " + epoch + "L: " + logs.loss);
+                        }
+                    }
+                }
+            );
+            const testVal = tf.tensor2d([5.8, 2.7, 5.1, 1.9], [1, 4]);
+            const prediction = model.predict(testVal);
+            alert(prediction);
+        }
+        run();
+    </script>
+</body>
+
+</html>
